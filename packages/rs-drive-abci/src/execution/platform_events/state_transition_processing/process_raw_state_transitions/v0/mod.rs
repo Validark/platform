@@ -11,6 +11,7 @@ use dpp::fee::fee_result::FeeResult;
 use dpp::state_transition::StateTransition;
 use dpp::validation::SimpleConsensusValidationResult;
 
+use crate::platform_types::platform_state::v0::PlatformStateV0Methods;
 use dpp::version::PlatformVersion;
 use drive::grovedb::Transaction;
 use tenderdash_abci::proto::abci::ExecTxResult;
@@ -62,8 +63,26 @@ where
             .into_iter()
             .zip(raw_state_transitions.iter())
             .map(|(state_transition, raw_state_transition)| {
-                let state_transition_execution_event =
-                    process_state_transition(&platform_ref, state_transition, Some(transaction))?;
+                if block_platform_state.height() >= 20 {
+                    // dbg!(
+                    //     "before",
+                    //     block_platform_state.height(),
+                    //     platform_ref.drive.grove.verify_grovedb(Some(transaction)),
+                    //     hex::encode(&state_transition.owner_id())
+                    // );
+                }
+
+                let state_transition_execution_event = process_state_transition(
+                    &platform_ref,
+                    state_transition.clone(),
+                    Some(transaction),
+                )?;
+
+                let a = state_transition_execution_event
+                    .data
+                    .as_ref()
+                    .unwrap()
+                    .clone();
 
                 let execution_result = if state_transition_execution_event.is_valid() {
                     let execution_event = state_transition_execution_event.into_data()?;
@@ -73,6 +92,25 @@ where
                         state_transition_execution_event.errors,
                     ))
                 };
+
+                if block_platform_state.height() >= 20 {
+                    let issues = platform_ref.drive.grove.verify_grovedb(Some(transaction));
+                    if issues.len() > 0 {
+                        dbg!(state_transition);
+                        dbg!(a.low_level_drive_operations(
+                            &self.drive,
+                            block_info,
+                            Some(transaction),
+                            platform_version
+                        ));
+                    }
+                    // dbg!(
+                    //     "after",
+                    //     block_platform_state.height(),
+                    //     platform_ref.drive.grove.verify_grovedb(Some(transaction))
+                    // );
+                }
+
                 if let SuccessfulPaidExecution(_, fee_result) = &execution_result {
                     aggregate_fee_result.checked_add_assign(fee_result.clone())?;
                 }

@@ -19,14 +19,15 @@ use prost::Message;
 
 use dpp::data_contract::document_type::accessors::DocumentTypeV0Getters;
 use dpp::identity::identity_public_key::accessors::v0::IdentityPublicKeyGettersV0;
+use dpp::platform_value::btreemap_extensions::BTreeValueMapHelper;
 use dpp::platform_value::string_encoding::Encoding;
 use dpp::state_transition::documents_batch_transition::accessors::DocumentsBatchTransitionAccessorsV0;
 use dpp::state_transition::documents_batch_transition::document_base_transition::v0::v0_methods::DocumentBaseTransitionV0Methods;
 use dpp::state_transition::documents_batch_transition::document_transition::action_type::TransitionActionTypeGetter;
 use dpp::state_transition::documents_batch_transition::document_transition::DocumentTransitionV0Methods;
 use drive::state_transition_action::document::documents_batch::document_transition::document_base_transition_action::DocumentBaseTransitionActionAccessorsV0;
-use drive::state_transition_action::document::documents_batch::document_transition::document_create_transition_action::DocumentFromCreateTransition;
-use drive::state_transition_action::document::documents_batch::document_transition::document_replace_transition_action::DocumentFromReplaceTransition;
+use drive::state_transition_action::document::documents_batch::document_transition::document_create_transition_action::{DocumentCreateTransitionActionAccessorsV0, DocumentFromCreateTransition};
+use drive::state_transition_action::document::documents_batch::document_transition::document_replace_transition_action::{DocumentFromReplaceTransition, DocumentReplaceTransitionActionAccessorsV0};
 
 pub(crate) fn verify_state_transitions_were_executed(
     abci_app: &AbciApplication<MockCoreRPCLike>,
@@ -220,14 +221,44 @@ pub(crate) fn verify_state_transitions_were_executed(
                         block_time_ms: None, //None because we want latest
                     };
 
-                    // dbg!(
-                    //     platform.state.height(),
-                    //     document_transition_action.action_type(),
-                    //     document_transition_action
-                    //         .base()
-                    //         .id()
-                    //         .to_string(Encoding::Base58)
-                    // );
+                    if platform.state.height() >= 20 {
+                        // dbg!(platform.drive.grove.verify_grovedb());
+                        dbg!("testing db");
+                        dbg!(platform.state.height());
+                        // platform.drive.grove.test_db();
+                        dbg!(platform.drive.grove.verify_grovedb(None).len());
+                        // let s: StateTransition =
+                        // dbg!(hex::encode(documents_batch_transition.owner_id()));
+                        // dbg!(platform.drive.grove.verify_grovedb(None));
+                        dbg!("done testing");
+                        // dbg!(
+                        //     platform.state.height(),
+                        //     document_transition_action,
+                        //     document_transition_action.action_type()
+                        // );
+                    }
+
+                    // dbg!(platform.state.height());
+                    // if document_transition_action.base().document_type_name() == "contactRequest" {
+                    //     // dbg!(documents_batch_transition.owner_id());
+                    //     if let DocumentTransitionAction::CreateAction(action) = document_transition_action {
+                    //         println!(
+                    //             "{}, {}",
+                    //             hex::encode(&documents_batch_transition.owner_id()),
+                    //             hex::encode(action.data().get_identifier("toUserId").unwrap())
+                    //         );
+                    //     } else if let DocumentTransitionAction::ReplaceAction(action) = document_transition_action {
+                    //         println!(
+                    //             "{}, {}",
+                    //             hex::encode(&documents_batch_transition.owner_id()),
+                    //             hex::encode(action.data().get_identifier("toUserId").unwrap())
+                    //         );
+                    //     }
+                    // }
+                    // document_transition_action
+                    //     .base()
+                    //     .id()
+                    //     .to_string(Encoding::Base58)
 
                     let (root_hash, document) = query
                         .verify_proof(

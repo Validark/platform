@@ -33,7 +33,8 @@ pub use dpp;
 #[cfg(feature = "full")]
 pub use grovedb;
 
-mod fee;
+/// Fee module
+pub mod fee;
 /// State transition action module
 #[cfg(feature = "full")]
 pub mod state_transition_action;

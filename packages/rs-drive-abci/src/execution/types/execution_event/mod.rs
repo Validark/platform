@@ -5,16 +5,21 @@ use crate::error::Error;
 use crate::execution::types::execution_event::ExecutionEvent::{
     PaidDriveEvent, PaidFromAssetLockDriveEvent,
 };
+use dpp::block::block_info::BlockInfo;
 use dpp::block::epoch::Epoch;
 use dpp::fee::Credits;
 
 use dpp::identity::PartialIdentity;
 
 use dpp::version::PlatformVersion;
+use drive::drive::batch::drive_op_batch::DriveLowLevelOperationConverter;
 use drive::state_transition_action::StateTransitionAction;
 
 use drive::drive::batch::transitions::DriveHighLevelOperationConverter;
 use drive::drive::batch::DriveOperation;
+use drive::drive::Drive;
+use drive::fee::op::LowLevelDriveOperation;
+use drive::grovedb::TransactionArg;
 
 /// An execution event
 #[derive(Clone)]
@@ -72,6 +77,39 @@ impl<'a> ExecutionEvent<'a> {
             identity,
             operations,
         }
+    }
+
+    /// Return operations
+    pub fn operations(&self) -> &Vec<DriveOperation<'a>> {
+        match self {
+            PaidDriveEvent { operations, .. } => operations,
+            ExecutionEvent::PaidFromAssetLockDriveEvent { operations, .. } => operations,
+            ExecutionEvent::FreeDriveEvent { operations } => operations,
+        }
+    }
+
+    /// Return low level drive operations
+    pub fn low_level_drive_operations(
+        &self,
+        drive: &Drive,
+        block_info: &BlockInfo,
+        transaction: TransactionArg,
+        platform_version: &PlatformVersion,
+    ) -> Result<Vec<Vec<LowLevelDriveOperation>>, Error> {
+        self.operations()
+            .iter()
+            .map(|drive_op| {
+                drive_op.clone()
+                    .into_low_level_drive_operations(
+                        drive,
+                        &mut None,
+                        block_info,
+                        transaction,
+                        platform_version,
+                    )
+                    .map_err(Error::Drive)
+            })
+            .collect()
     }
 }
 

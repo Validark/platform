@@ -556,6 +556,10 @@ where
             ),
         ))?;
 
+        // dbg!(
+        //     "before finalize block proposal",
+        //     self.platform.drive.grove.verify_grovedb(Some(transaction))
+        // );
         let block_finalization_outcome = self
             .platform
             .finalize_block_proposal(request.try_into()?, transaction)?;
@@ -574,9 +578,17 @@ where
             .into());
         }
 
+        // dbg!(
+        //     "before transaction commit",
+        //     self.platform.drive.grove.verify_grovedb(Some(transaction))
+        // );
         drop(transaction_guard);
 
         self.commit_transaction()?;
+        // dbg!(
+        //     "after transaction commit",
+        //     self.platform.drive.grove.verify_grovedb(None)
+        // );
 
         Ok(ResponseFinalizeBlock {
             events: vec![],

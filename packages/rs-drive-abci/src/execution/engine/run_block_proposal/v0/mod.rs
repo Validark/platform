@@ -225,6 +225,12 @@ where
                 .collect(),
         );
 
+        if last_block_height >= 20 {
+            // dbg!(
+            //     "before process state transitionl",
+            //     self.drive.grove.verify_grovedb(Some(transaction))
+            // );
+        }
         let (block_fees, tx_results) = self.process_raw_state_transitions(
             raw_state_transitions,
             block_execution_context.block_platform_state(),
@@ -232,6 +238,12 @@ where
             transaction,
             platform_version,
         )?;
+        if last_block_height >= 20 {
+            // dbg!(
+            //     "after process state transition",
+            //     self.drive.grove.verify_grovedb(Some(transaction))
+            // );
+        }
 
         let mut block_execution_context: BlockExecutionContext = block_execution_context;
 
@@ -254,6 +266,13 @@ where
             platform_version,
         )?;
 
+        if last_block_height >= 20 {
+            // dbg!(
+            //     "after block fees",
+            //     self.drive.grove.verify_grovedb(Some(transaction))
+            // );
+        }
+
         let root_hash = self
             .drive
             .grove
@@ -268,6 +287,13 @@ where
         let state = self.state.read().unwrap();
         let validator_set_update =
             self.validator_set_update(&state, &mut block_execution_context, platform_version)?;
+
+        if last_block_height >= 20 {
+            // dbg!(
+            //     "after val set update",
+            //     self.drive.grove.verify_grovedb(Some(transaction))
+            // );
+        }
 
         self.block_execution_context
             .write()
