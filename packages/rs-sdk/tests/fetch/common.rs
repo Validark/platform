@@ -19,17 +19,12 @@ pub const DATA_CONTRACT_ID: &str = "rt863oRafQ4pkBAUJ5r1PAf8lZ9O7C0qBeLwmHXDEro=
 /// Document type defined within data contract DATA_CONTRACT_ID
 pub const DOCUMENT_TYPE_NAME: &str = "indexedDocument";
 
-/// ID of existing document (within data contract DATA_CONTRACT_ID), created as part of platform test suite run.
-/// Changes when platform is reset.
-pub const DOCUMENT_ID: &str = "uHfJHpk77MGiqsvvJc8mqgT3O6RK8Ue/u5zIjowu7Uk=";
-
 /// Create new SDK instance connecting to local network, based on constants defined in this module
 pub fn setup_api() -> rs_sdk::Sdk {
     use rs_dapi_client::AddressList;
-
     let uri = http::Uri::from_maybe_shared(format!("http://{}:{}", PLATFORM_IP, PLATFORM_PORT))
         .expect("platform address");
-    let addresses = AddressList::from(vec![uri]);
+    let addresses = AddressList::from_iter(vec![uri]);
     let api = rs_sdk::SdkBuilder::new(addresses)
         .with_core(PLATFORM_IP, CORE_PORT, CORE_USER, CORE_PASSWORD)
         .build()
