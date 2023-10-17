@@ -9,12 +9,12 @@ mod dapi_client;
 mod request_settings;
 pub mod transport;
 
-pub use dapi_client::Dapi;
 use futures::{future::BoxFuture, FutureExt};
 pub use http::Uri;
+pub use tonic;
 
 pub use address_list::AddressList;
-pub use dapi_client::{DapiClient, DapiClientError};
+pub use dapi_client::{DapiClient, DapiClientError, Dapi};
 pub use request_settings::RequestSettings;
 
 /// A DAPI request could be executed with an initialized [DapiClient].
