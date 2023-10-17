@@ -4,8 +4,8 @@
 
 mod address_list;
 mod dapi_client;
-#[cfg(feature = "mocks")]
-pub mod mock;
+//#[cfg(feature = "mocks")]
+//pub mod mock;
 mod request_settings;
 pub mod transport;
 
