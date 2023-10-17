@@ -11,10 +11,9 @@ pub use bincode::{Decode, Encode};
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Encode, Decode)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainAssetLockProof {
-    #[serde(rename = "type")]
-    asset_lock_type: u8,
     pub core_chain_locked_height: u32,
     pub out_point: Bytes36,
+    pub index: u16,
 }
 
 impl TryFrom<Value> for ChainAssetLockProof {
@@ -32,12 +31,11 @@ impl ChainAssetLockProof {
         self.to_object()
     }
 
-    pub fn new(core_chain_locked_height: u32, out_point: [u8; 36]) -> Self {
+    pub fn new(core_chain_locked_height: u32, out_point: [u8; 36], index: u16) -> Self {
         Self {
-            // TODO: change to const
-            asset_lock_type: 1,
             core_chain_locked_height,
             out_point: Bytes36::new(out_point),
+            index,
         }
     }
 

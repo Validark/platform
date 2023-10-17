@@ -17,7 +17,6 @@ use crate::{NonConsensusError, ProtocolError};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InstantAssetLockProof {
-    asset_lock_type: u8,
     instant_lock: InstantLock,
     transaction: Transaction,
     output_index: u32,
@@ -55,8 +54,6 @@ impl TryFrom<Value> for InstantAssetLockProof {
 impl Default for InstantAssetLockProof {
     fn default() -> Self {
         Self {
-            // TODO: change to a const
-            asset_lock_type: 0,
             instant_lock: InstantLock::default(),
             transaction: Transaction {
                 version: 0,
@@ -77,7 +74,6 @@ impl InstantAssetLockProof {
             instant_lock,
             transaction,
             output_index,
-            asset_lock_type: 0,
         }
     }
 
@@ -89,7 +85,7 @@ impl InstantAssetLockProof {
     }
 
     pub fn asset_lock_type(&self) -> u8 {
-        self.asset_lock_type
+        0
     }
 
     pub fn instant_lock(&self) -> &InstantLock {
@@ -139,7 +135,7 @@ impl InstantAssetLockProof {
             .consensus_encode(&mut transaction_buffer)
             .map_err(|e| ProtocolError::EncodingError(e.to_string()))?;
 
-        map.insert("type", self.asset_lock_type);
+        map.insert("type", 0); //0 for is lock proofs
         map.insert("outputIndex", self.output_index);
         map.insert("transaction", transaction_buffer);
         map.insert("instantLock", is_lock_buffer);
@@ -170,7 +166,6 @@ impl TryFrom<RawInstantLock> for InstantAssetLockProof {
             .map_err(|e| ProtocolError::DecodingError(e.to_string()))?;
 
         Ok(Self {
-            asset_lock_type: raw_instant_lock.lock_type,
             transaction,
             instant_lock,
             output_index: raw_instant_lock.output_index,
@@ -194,7 +189,7 @@ impl TryFrom<&InstantAssetLockProof> for RawInstantLock {
             .map_err(|e| ProtocolError::EncodingError(e.to_string()))?;
 
         Ok(Self {
-            lock_type: instant_asset_lock_proof.asset_lock_type,
+            lock_type: 0,
             instant_lock: BinaryData::new(is_lock_buffer),
             transaction: BinaryData::new(transaction_buffer),
             output_index: instant_asset_lock_proof.output_index,
