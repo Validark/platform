@@ -24,6 +24,7 @@ struct ChainAssetLockProofParams {
     lock_type: u8,
     core_chain_locked_height: u32,
     out_point: Vec<u8>,
+    index: u16,
 }
 
 impl From<ChainAssetLockProof> for ChainAssetLockProofWasm {
@@ -51,7 +52,7 @@ impl ChainAssetLockProofWasm {
         })?;
 
         let chain_asset_lock_proof =
-            ChainAssetLockProof::new(parameters.core_chain_locked_height, out_point);
+            ChainAssetLockProof::new(parameters.core_chain_locked_height, out_point, parameters.index);
 
         Ok(ChainAssetLockProofWasm(chain_asset_lock_proof))
     }

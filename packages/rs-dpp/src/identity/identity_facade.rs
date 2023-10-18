@@ -75,8 +75,9 @@ impl IdentityFacade {
     pub fn create_chain_asset_lock_proof(
         core_chain_locked_height: u32,
         out_point: [u8; 36],
+        index: u16,
     ) -> ChainAssetLockProof {
-        IdentityFactory::create_chain_asset_lock_proof(core_chain_locked_height, out_point)
+        IdentityFactory::create_chain_asset_lock_proof(core_chain_locked_height, out_point, index)
     }
 
     #[cfg(feature = "state-transitions")]

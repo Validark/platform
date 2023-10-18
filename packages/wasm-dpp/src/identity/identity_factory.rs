@@ -137,6 +137,7 @@ impl IdentityFactoryWasm {
         &self,
         core_chain_locked_height: u32,
         out_point: Vec<u8>,
+        index: u16,
     ) -> Result<ChainAssetLockProofWasm, JsValue> {
         let out_point: [u8; 36] = out_point.try_into().map_err(|_| {
             RustConversionError::Error(String::from("outPoint must be a 36 byte array"))
@@ -144,7 +145,7 @@ impl IdentityFactoryWasm {
         })?;
 
         Ok(
-            IdentityFactory::create_chain_asset_lock_proof(core_chain_locked_height, out_point)
+            IdentityFactory::create_chain_asset_lock_proof(core_chain_locked_height, out_point, index)
                 .into(),
         )
     }
