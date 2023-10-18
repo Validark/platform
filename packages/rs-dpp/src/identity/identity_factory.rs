@@ -141,8 +141,9 @@ impl IdentityFactory {
     pub fn create_chain_asset_lock_proof(
         core_chain_locked_height: u32,
         out_point: [u8; 36],
+        index: u16,
     ) -> ChainAssetLockProof {
-        ChainAssetLockProof::new(core_chain_locked_height, out_point)
+        ChainAssetLockProof::new(core_chain_locked_height, out_point, index)
     }
 
     #[cfg(all(feature = "state-transitions", feature = "client"))]

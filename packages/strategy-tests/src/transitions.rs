@@ -36,6 +36,8 @@ use simple_signer::signer::SimpleSigner;
 
 use std::collections::HashSet;
 use std::str::FromStr;
+use dpp::dashcore::transaction::special_transaction::asset_lock::AssetLockPayload;
+use dpp::dashcore::transaction::special_transaction::TransactionPayload;
 
 /// Constructs an `AssetLockProof` representing an instant asset lock proof.
 ///
@@ -120,22 +122,26 @@ pub fn instant_asset_lock_proof_transaction_fixture(
     let one_time_key_hash = one_time_public_key.pubkey_hash();
     let burn_output = TxOut {
         value: 100000000, // 1 Dash
-        script_pubkey: ScriptBuf::new_op_return(&one_time_key_hash),
+        script_pubkey: ScriptBuf::new_p2pkh(&one_time_key_hash),
+    };
+    let payload_output = TxOut {
+        value: 100000000, // 1 Dash
+        script_pubkey: ScriptBuf::new_op_return(&[]),
     };
     let change_output = TxOut {
         value: 5000,
         script_pubkey: ScriptBuf::new_p2pkh(&public_key_hash),
     };
-    let unrelated_burn_output = TxOut {
-        value: 5000,
-        script_pubkey: ScriptBuf::new_op_return(&[1, 2, 3]),
+    let payload = AssetLockPayload {
+        version: 0,
+        credit_outputs: vec![payload_output],
     };
     Transaction {
         version: 0,
         lock_time: 0,
         input: vec![input],
-        output: vec![burn_output, change_output, unrelated_burn_output],
-        special_transaction_payload: None,
+        output: vec![burn_output, change_output],
+        special_transaction_payload: Some(TransactionPayload::AssetLockPayloadType(payload)),
     }
 }
 
