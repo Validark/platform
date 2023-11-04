@@ -23,7 +23,7 @@ chrono = { version = "0.4.20", default-features = false, features = [
     "clock",
 ] }
 ciborium = { git = "https://github.com/qrayven/ciborium", branch = "feat-ser-null-as-undefined", optional = true }
-dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
+dashcore = { git = "https://github.com/pshenmic/rust-dashcore", features = [
     "std",
     "secp-recovery",
     "rand",

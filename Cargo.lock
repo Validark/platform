@@ -1007,8 +1007,24 @@ source = "git+https://github.com/dashpay/rust-dashcore?branch=master#43ffb72915a
 dependencies = [
  "anyhow",
  "bech32",
- "dashcore-private",
- "dashcore_hashes",
+ "dashcore-private 0.1.0 (git+https://github.com/dashpay/rust-dashcore?branch=master)",
+ "dashcore_hashes 0.12.0 (git+https://github.com/dashpay/rust-dashcore?branch=master)",
+ "hex",
+ "hex_lit",
+ "rustversion",
+ "secp256k1",
+ "serde",
+]
+
+[[package]]
+name = "dashcore"
+version = "0.30.0"
+source = "git+https://github.com/pshenmic/rust-dashcore?branch=master#43ffb72915ae55574ac44fcdbd47589e0c815b59"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "dashcore-private 0.1.0 (git+https://github.com/pshenmic/rust-dashcore?branch=master)",
+ "dashcore_hashes 0.12.0 (git+https://github.com/pshenmic/rust-dashcore?branch=master)",
  "hex",
  "hex_lit",
  "rustversion",
@@ -1022,11 +1038,16 @@ version = "0.1.0"
 source = "git+https://github.com/dashpay/rust-dashcore?branch=master#43ffb72915ae55574ac44fcdbd47589e0c815b59"
 
 [[package]]
+name = "dashcore-private"
+version = "0.1.0"
+source = "git+https://github.com/pshenmic/rust-dashcore?branch=master#43ffb72915ae55574ac44fcdbd47589e0c815b59"
+
+[[package]]
 name = "dashcore-rpc"
 version = "0.15.1"
 source = "git+https://github.com/dashpay/rust-dashcore-rpc?branch=master#d6eb09d3cb4f11f57901bed5f3ab2f9657848e2e"
 dependencies = [
- "dashcore-private",
+ "dashcore-private 0.1.0 (git+https://github.com/dashpay/rust-dashcore?branch=master)",
  "dashcore-rpc-json",
  "env_logger 0.10.0",
  "hex",
@@ -1042,7 +1063,7 @@ version = "0.15.1"
 source = "git+https://github.com/dashpay/rust-dashcore-rpc?branch=master#d6eb09d3cb4f11f57901bed5f3ab2f9657848e2e"
 dependencies = [
  "bincode 2.0.0-rc.3",
- "dashcore",
+ "dashcore 0.30.0 (git+https://github.com/dashpay/rust-dashcore?branch=master)",
  "hex",
  "serde",
  "serde_json",
@@ -1055,7 +1076,18 @@ name = "dashcore_hashes"
 version = "0.12.0"
 source = "git+https://github.com/dashpay/rust-dashcore?branch=master#43ffb72915ae55574ac44fcdbd47589e0c815b59"
 dependencies = [
- "dashcore-private",
+ "dashcore-private 0.1.0 (git+https://github.com/dashpay/rust-dashcore?branch=master)",
+ "rs-x11-hash",
+ "secp256k1",
+ "serde",
+]
+
+[[package]]
+name = "dashcore_hashes"
+version = "0.12.0"
+source = "git+https://github.com/pshenmic/rust-dashcore?branch=master#43ffb72915ae55574ac44fcdbd47589e0c815b59"
+dependencies = [
+ "dashcore-private 0.1.0 (git+https://github.com/pshenmic/rust-dashcore?branch=master)",
  "rs-x11-hash",
  "secp256k1",
  "serde",
@@ -1181,7 +1213,7 @@ dependencies = [
  "byteorder",
  "chrono",
  "ciborium",
- "dashcore",
+ "dashcore 0.30.0 (git+https://github.com/pshenmic/rust-dashcore?branch=master)",
  "data-contracts",
  "derive_more",
  "dpp",
