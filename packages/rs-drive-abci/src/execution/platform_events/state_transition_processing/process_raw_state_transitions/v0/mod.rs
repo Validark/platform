@@ -219,7 +219,7 @@ where
 
         let state_transition_execution_result = match event_execution_result {
             EventExecutionResult::SuccessfulPaidExecution(estimated_fees, actual_fees) => {
-                tracing::debug!(
+                tracing::trace!(
                     "{} state transition ({}) successfully processed",
                     state_transition_name,
                     st_hash,
@@ -228,7 +228,7 @@ where
                 StateTransitionExecutionResult::SuccessfulExecution(estimated_fees, actual_fees)
             }
             EventExecutionResult::SuccessfulFreeExecution => {
-                tracing::debug!(
+                tracing::trace!(
                     "Free {} state transition ({}) successfully processed",
                     state_transition_name,
                     st_hash,
