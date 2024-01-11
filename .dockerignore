@@ -5,6 +5,7 @@
 *.log
 Dockerfile
 **/*.spec.ts
+.env
 
 tmp
 logs
