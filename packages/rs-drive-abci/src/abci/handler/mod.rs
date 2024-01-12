@@ -109,15 +109,14 @@ where
             last_block_app_hash: state_app_hash.clone(),
         };
 
-        tracing::info!(
+        tracing::debug!(
             protocol_version = latest_platform_version.protocol_version,
             software_version = env!("CARGO_PKG_VERSION"),
             block_version = request.block_version,
             p2p_version = request.p2p_version,
             app_hash = hex::encode(state_app_hash),
             height = state_guard.last_block_height(),
-            "Consensus engine is started from block {}",
-            state_guard.last_block_height(),
+            "Handshake with consensus engine",
         );
 
         if tracing::enabled!(tracing::Level::TRACE) {
@@ -163,7 +162,7 @@ where
         tracing::info!(
             app_hash,
             chain_id,
-            "platform chain initialized, initial state is created"
+            "Platform chain initialized, initial state is created"
         );
 
         Ok(response)
@@ -265,9 +264,11 @@ where
 
         // We need to let Tenderdash know about the transactions we should remove from execution
         let valid_tx_count = state_transitions_result.valid_count();
-        let invalid_tx_count = state_transitions_result.invalid_count();
+        let invalid_all_tx_count = state_transitions_result.invalid_count();
         let failed_tx_count = state_transitions_result.failed_count();
         let delayed_tx_count = transactions_exceeding_max_block_size.len();
+        let mut invalid_paid_tx_count = state_transitions_result.invalid_count();
+        let mut invalid_unpaid_tx_count = state_transitions_result.invalid_count();
 
         let mut tx_results = Vec::new();
         let mut tx_records = Vec::new();
@@ -280,13 +281,21 @@ where
             let tx_action = match &state_transition_execution_result {
                 StateTransitionExecutionResult::SuccessfulExecution(_, _) => TxAction::Unmodified,
                 // We have identity to pay for the state transition, so we keep it in the block
-                StateTransitionExecutionResult::PaidConsensusError(_) => TxAction::Unmodified,
+                StateTransitionExecutionResult::PaidConsensusError(_) => {
+                    invalid_paid_tx_count += 1;
+
+                    TxAction::Unmodified
+                }
                 // We don't have any associated identity to pay for the state transition,
                 // so we remove it from the block to prevent spam attacks.
                 // Such state transitions must be invalidated by check tx, but they might
                 // still be added to mempool due to inconsistency between check tx and tx processing
                 // (fees calculation) or malicious proposer.
-                StateTransitionExecutionResult::UnpaidConsensusError(_) => TxAction::Removed,
+                StateTransitionExecutionResult::UnpaidConsensusError(_) => {
+                    invalid_unpaid_tx_count += 1;
+
+                    TxAction::Removed
+                }
                 // We shouldn't include in the block any state transitions that produced an internal error
                 // during execution
                 StateTransitionExecutionResult::DriveAbciError(_) => TxAction::Removed,
@@ -336,12 +345,14 @@ where
         let elapsed_time_ms = timer.elapsed().as_millis();
 
         tracing::info!(
-            invalid_tx_count,
+            invalid_paid_tx_count,
+            invalid_unpaid_tx_count,
             valid_tx_count,
             delayed_tx_count,
             failed_tx_count,
+            invalid_unpaid_tx_count,
             "Prepared proposal with {} transitions for height: {}, round: {} in {} ms",
-            valid_tx_count,
+            valid_tx_count + invalid_paid_tx_count,
             request.height,
             request.round,
             elapsed_time_ms,
@@ -571,7 +582,7 @@ where
                 valid_tx_count,
                 elapsed_time_ms,
                 "Processed proposal with {} transactions for height: {}, round: {} in {} ms",
-                valid_tx_count,
+                valid_tx_count + invalid_tx_count,
                 request.height,
                 request.round,
                 elapsed_time_ms,
@@ -644,10 +655,13 @@ where
             ..
         } = request;
 
+        let height: u64 = height as u64;
+        let round: u32 = round as u32;
+
         let guarded_block_execution_context = self.platform.block_execution_context.read().unwrap();
         let Some(block_execution_context) = guarded_block_execution_context.as_ref() else {
             tracing::warn!(
-                "vote extension for height: {}, round: {} is ignored because block already committed",
+                "vote extension for height: {}, round: {} is rejected because we are not in a block execution phase",
                 height,
                 round,
             );
@@ -690,7 +704,24 @@ where
         //     });
         // };
 
-        // TODO: Verify hash, height and round to make sure we have vote extension for this specific proposal
+        let block_state_info = block_execution_context.block_state_info();
+
+        //// Verification that vote extension is for our current executed block
+        // When receiving the vote extension, we need to make sure that info matches our current block
+
+        if block_state_info.height() != height || block_state_info.round() != round {
+            tracing::warn!(
+                "vote extension for height: {}, round: {} is rejected because we are at height: {} round {}",
+                height,
+                round,
+                block_state_info.height(),
+                block_state_info.round()
+            );
+
+            return Ok(proto::ResponseVerifyVoteExtension {
+                status: VerifyStatus::Reject.into(),
+            });
+        }
 
         let validation_result = self.platform.check_withdrawals(
             &got,
