@@ -13,9 +13,7 @@ use dpp::bincode::{config, Decode, Encode};
 use dpp::block::epoch::Epoch;
 use dpp::block::extended_block_info::ExtendedBlockInfo;
 use dpp::dashcore::{ProTxHash, QuorumHash};
-use dpp::serialization::{
-    PlatformDeserializable, PlatformDeserializableFromVersionedStructure, PlatformSerializable,
-};
+use dpp::serialization::{PlatformDeserializableFromVersionedStructure, PlatformSerializable};
 use dpp::util::deserializer::ProtocolVersion;
 
 use dpp::version::{PlatformVersion, TryFromPlatformVersioned, TryIntoPlatformVersioned};
@@ -25,7 +23,7 @@ use indexmap::IndexMap;
 use crate::error::execution::ExecutionError;
 use dpp::block::block_info::BlockInfo;
 use dpp::bls_signatures::PublicKey as ThresholdBlsPublicKey;
-use dpp::util::hash::hash;
+use dpp::util::hash::hash_double;
 use std::collections::BTreeMap;
 
 /// Platform state
