@@ -9,7 +9,9 @@ mod value_conversion;
 mod version;
 
 use bincode::{Decode, Encode};
-use dashcore::transaction::special_transaction::asset_unlock::qualified_asset_unlock::ASSET_UNLOCK_TX_SIZE;
+
+pub const ASSET_UNLOCK_TX_SIZE: usize = 190;
+
 use platform_serialization_derive::PlatformSignable;
 use platform_value::BinaryData;
 use serde::{Deserialize, Serialize};
