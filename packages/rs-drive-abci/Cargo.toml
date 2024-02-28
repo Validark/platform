@@ -1,6 +1,6 @@
 [package]
 name = "drive-abci"
-version = "1.0.0-pr.1694.6"
+version = "1.0.0-pr.1694.7"
 authors = [
     "Samuel Westrich <sam@dash.org>",
     "Ivan Shumkov <ivan@shumkov.ru>",
@@ -56,7 +56,7 @@ tracing-subscriber = { version = "0.3.16", default-features = false, features = 
 ], optional = false }
 atty = { version = "0.2.14", optional = false }
 tenderdash-abci = { git = "https://github.com/dashpay/rs-tenderdash-abci", rev = "47d4105a49a4a332d5578a91371333686c7c5b1a", features = [
-    "grpc-server",
+  "grpc-server",
 ] }
 thread-priority = "0.15.1"
 lazy_static = "1.4.0"
@@ -112,7 +112,7 @@ integer-encoding = { version = "4.0.0" }
 default = ["server", "mocks", "console"]
 server = ["clap", "dotenvy"]
 mocks = ["mockall", "drive/fixtures-and-mocks"]
-console = ["console-subscriber"]
+console = ["console-subscriber", "tokio/tracing"]
 
 
 [[bin]]
