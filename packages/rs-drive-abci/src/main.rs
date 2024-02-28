@@ -15,6 +15,8 @@ use drive_abci::platform_types::platform::Platform;
 use drive_abci::rpc::core::DefaultCoreRPC;
 use itertools::Itertools;
 use std::fs::remove_file;
+use std::io;
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -51,6 +53,14 @@ enum Commands {
     /// by creating `.fsck` file in database directory (`DB_PATH`).
     #[command()]
     Verify,
+
+    /// Update consensus params.
+    #[command()]
+    UpdateConsensusParams {
+        /// Height
+        #[arg(short, long)]
+        height: u64,
+    },
 }
 
 /// Server that accepts connections from Tenderdash, and
@@ -129,6 +139,31 @@ impl Cli {
             Commands::Config => dump_config(&config)?,
             Commands::Status => check_status(&config)?,
             Commands::Verify => verify_grovedb(&config.db_path, true)?,
+            Commands::UpdateConsensusParams { height } => {
+                let mut params_json = String::new();
+                io::stdin()
+                    .read_to_string(&mut params_json)
+                    .expect("failed to read from stdin");
+
+                // TODO: We don't need this
+                let core_rpc = DefaultCoreRPC::open(
+                    config.core.rpc.url().as_str(),
+                    config.core.rpc.username.clone(),
+                    config.core.rpc.password.clone(),
+                )
+                .unwrap();
+
+                let platform: Platform<DefaultCoreRPC> = Platform::open_with_client(
+                    config.db_path.clone(),
+                    Some(config.clone()),
+                    core_rpc,
+                )
+                .expect("Failed to open platform");
+
+                platform
+                    .store_consensus_params_update_for_height(height, &params_json)
+                    .expect("should store consensus params");
+            }
         };
 
         Ok(())

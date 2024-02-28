@@ -1,5 +1,4 @@
 use crate::abci::app::{PlatformApplication, TransactionalApplication};
-use crate::abci::handler::prepare_proposal::get_consensus_params_update;
 use crate::abci::AbciError;
 use crate::error::Error;
 use crate::execution::types::block_execution_context::v0::{
@@ -217,17 +216,17 @@ where
             .map(|execution_result| execution_result.try_into_platform_versioned(platform_version))
             .collect::<Result<_, _>>()?;
 
+        let consensus_param_updates = app
+            .platform()
+            .consensus_params_update_for_height(request.height as u64)?;
+
         let response = proto::ResponseProcessProposal {
             app_hash: app_hash.to_vec(),
             tx_results,
             status: proto::response_process_proposal::ProposalStatus::Accept.into(),
             validator_set_update,
             // TODO: Implement consensus param updates
-            consensus_param_updates: get_consensus_params_update(
-                &app.platform().config.abci.consensus_params_dir,
-                request.height,
-            )
-            .map_err(|e| Error::Abci(AbciError::ConsensusParams(e.to_string())))?,
+            consensus_param_updates,
         };
 
         let elapsed_time_ms = timer.elapsed().as_millis();

@@ -83,6 +83,7 @@ mod test_utils;
 
 #[cfg(feature = "full")]
 mod asset_lock;
+mod consenus_params;
 #[cfg(feature = "full")]
 pub(crate) mod fee;
 #[cfg(feature = "full")]

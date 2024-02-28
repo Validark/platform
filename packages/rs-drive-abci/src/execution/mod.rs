@@ -1,5 +1,6 @@
 /// Check tx module
 mod check_tx;
+mod consensus_params;
 /// Engine module
 pub mod engine;
 /// platform execution events
