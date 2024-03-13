@@ -18,7 +18,6 @@ impl TryIntoPlatformVersioned<ExecTxResult> for StateTransitionExecutionResult {
             StateTransitionExecutionResult::SuccessfulExecution(estimated_fees, actual_fees) => {
                 ExecTxResult {
                     code: 0,
-                    gas_wanted: estimated_fees.total_base_fee() as SignedCredits,
                     gas_used: actual_fees.total_base_fee() as SignedCredits,
                     ..Default::default()
                 }
@@ -27,7 +26,6 @@ impl TryIntoPlatformVersioned<ExecTxResult> for StateTransitionExecutionResult {
                 code: HandlerError::from(&error).code(),
                 info: error.response_info_for_version(platform_version)?,
                 // TODO: We need to pass processing fees as well
-                gas_wanted: 0,
                 gas_used: 0,
                 ..Default::default()
             },
@@ -36,7 +34,6 @@ impl TryIntoPlatformVersioned<ExecTxResult> for StateTransitionExecutionResult {
                     code: HandlerError::from(&error).code(),
                     info: error.response_info_for_version(platform_version)?,
                     // TODO: Improve gas wanted
-                    gas_wanted: actual_fees.total_base_fee() as SignedCredits,
                     gas_used: actual_fees.total_base_fee() as SignedCredits,
                     ..Default::default()
                 }

@@ -18,7 +18,7 @@ base64 = "0.20.0"
 bls-signatures = { git = "https://github.com/dashpay/bls-signatures", tag = "v1.3.1" }
 bs58 = "0.4.0"
 byteorder = { version = "1.4" }
-chrono = { version = "0.4.20", default-features = false, features = [
+chrono = { version = "0.4.35", default-features = false, features = [
     "wasmbind",
     "clock",
 ] }
@@ -196,8 +196,15 @@ state-transition-json-conversion = [
     "json-object",
     "data-contract-json-conversion",
 ]
-state-transition-validation = ["state-transitions", "message-signature-verification"]
-state-transition-signing = ["state-transitions", "message-signing","state-transition-validation"]
+state-transition-validation = [
+    "state-transitions",
+    "message-signature-verification",
+]
+state-transition-signing = [
+    "state-transitions",
+    "message-signing",
+    "state-transition-validation",
+]
 state-transitions = []
 system_contracts = ["factories"]
 fixtures-and-mocks = ["system_contracts"]
