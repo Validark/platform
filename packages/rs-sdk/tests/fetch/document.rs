@@ -181,3 +181,61 @@ async fn document_list_document_query() {
 
     tracing::info!(documents=?doc_ids, "fetched documents");
 }
+
+#[cfg(feature = "slow-tests")]
+/// Given some data contract ID, document type and document ID, when I fetch it, then I get it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn bench_document_read() {
+    // number of times to run the benchmark
+    let runs: usize = std::env::var("BENCH_RUNS")
+        .unwrap_or("100".into())
+        .parse()
+        .unwrap_or(100);
+
+    setup_logs();
+
+    let cfg = Config::new();
+    let sdk = cfg.setup_api().await;
+
+    let data_contract_id = cfg.existing_data_contract_id;
+
+    let contract = Arc::new(
+        DataContract::fetch(&sdk, data_contract_id)
+            .await
+            .expect("fetch data contract")
+            .expect("data contract not found"),
+    );
+
+    // Fetch multiple documents so that we get document ID
+    let all_docs_query =
+        DocumentQuery::new(Arc::clone(&contract), &cfg.existing_document_type_name)
+            .expect("create SdkDocumentQuery");
+    let first_doc = Document::fetch_many(&sdk, all_docs_query)
+        .await
+        .expect("fetch many documents")
+        .pop_first()
+        .expect("first item must exist")
+        .1
+        .expect("document must exist");
+
+    // Now query for individual document
+    let query = DocumentQuery::new(contract, &cfg.existing_document_type_name)
+        .expect("create SdkDocumentQuery")
+        .with_document_id(&first_doc.id());
+
+    let mut timings = Vec::<std::time::Duration>::with_capacity(runs);
+
+    for _ in 0..runs {
+        let start = std::time::Instant::now();
+        let doc = Document::fetch(&sdk, query.clone())
+            .await
+            .expect("fetch document")
+            .expect("document must be found");
+        timings.push(start.elapsed());
+        assert_eq!(first_doc, doc);
+    }
+
+    for (i, t) in timings.iter().enumerate() {
+        tracing::info!(run = i, time_ms = t.as_millis(), "fetch document");
+    }
+}
