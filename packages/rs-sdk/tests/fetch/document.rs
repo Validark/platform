@@ -187,9 +187,10 @@ async fn document_list_document_query() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn bench_document_read() {
     // number of times to run the benchmark
+
+    use std::sync::atomic;
     let runs: usize = std::env::var("BENCH_RUNS")
-        .unwrap_or("100".into())
-        .parse()
+        .map(|s| s.parse().expect("BENCH_RUNS must be a valid int"))
         .unwrap_or(100);
 
     setup_logs();
@@ -223,19 +224,33 @@ async fn bench_document_read() {
         .expect("create SdkDocumentQuery")
         .with_document_id(&first_doc.id());
 
-    let mut timings = Vec::<std::time::Duration>::with_capacity(runs);
+    let mut set = tokio::task::JoinSet::new();
 
-    for _ in 0..runs {
-        let start = std::time::Instant::now();
-        let doc = Document::fetch(&sdk, query.clone())
-            .await
-            .expect("fetch document")
-            .expect("document must be found");
-        timings.push(start.elapsed());
-        assert_eq!(first_doc, doc);
+    let total = Arc::new(atomic::AtomicU64::new(0));
+    for i in 0..runs {
+        let sdk = sdk.clone();
+        let query = query.clone();
+        let first_doc = first_doc.clone();
+        let total = total.clone();
+        set.spawn(async move {
+            let start = std::time::Instant::now();
+            let doc = Document::fetch(&sdk, query.clone())
+                .await
+                .expect("fetch document")
+                .expect("document must be found");
+            let took = start.elapsed();
+            total.fetch_add(
+                took.as_nanos().try_into().expect("took overflow"),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            assert_eq!(first_doc, doc);
+            tracing::info!(run = i, time_ms = took.as_millis(), "fetch document");
+        });
     }
 
-    for (i, t) in timings.iter().enumerate() {
-        tracing::info!(run = i, time_ms = t.as_millis(), "fetch document");
-    }
+    while set.join_next().await.is_some() {}
+
+    let total = total.load(std::sync::atomic::Ordering::Relaxed);
+    let avg = total / runs as u64;
+    tracing::info!(runs, total, avg, "document read benchmark complete");
 }
