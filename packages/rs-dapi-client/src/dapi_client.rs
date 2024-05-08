@@ -2,13 +2,18 @@
 
 use backon::{ExponentialBuilder, Retryable};
 use dapi_grpc::mock::Mockable;
-use dapi_grpc::tonic::async_trait;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use dapi_grpc::tonic::{async_trait, Status};
+use http::Uri;
+use std::error::Error;
+use std::ops::DerefMut;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use tracing::Instrument;
 
 use crate::address_list::AddressListError;
 use crate::connection_pool::ConnectionPool;
+use crate::request_settings::AppliedRequestSettings;
 use crate::{
     transport::{TransportClient, TransportRequest},
     Address, AddressList, CanRetry, RequestSettings,
@@ -18,8 +23,8 @@ use crate::{
 #[derive(Debug, thiserror::Error)]
 pub enum DapiClientError<TE> {
     /// The error happened on transport layer
-    #[error("transport error with {1}: {0}")]
-    Transport(TE, Address),
+    #[error("transport error with {1:?}: {0}")]
+    Transport(TE, Uri),
     /// There are no valid DAPI addresses to use.
     #[error("no available addresses to use")]
     NoAvailableAddresses,
@@ -43,6 +48,22 @@ impl<TE: CanRetry> CanRetry for DapiClientError<TE> {
             #[cfg(feature = "mocks")]
             Mock(_) => false,
         }
+    }
+}
+
+pub trait ToUri {
+    fn to_uri(&self) -> Uri;
+}
+
+impl ToUri for Status {
+    fn to_uri(&self) -> Uri {
+        println!(
+            "status error: {:?} {:?} {:?}",
+            self.metadata(),
+            self.source(),
+            String::from_utf8(self.details().to_vec()).unwrap_or("INVALID UTF-8".to_string())
+        );
+        Uri::from_static("http://127.0.0.11")
     }
 }
 
@@ -73,16 +94,36 @@ pub struct DapiClient {
 impl DapiClient {
     /// Initialize new [DapiClient] and optionally override default settings.
     pub fn new(address_list: AddressList, settings: RequestSettings) -> Self {
-        // multiply by 3 as we need to store core and platform addresses, and we want some spare capacity just in case
-        let address_count = 3 * address_list.len();
+        let address_list = Arc::new(RwLock::new(address_list));
 
         Self {
-            address_list: Arc::new(RwLock::new(address_list)),
+            address_list,
             settings,
-            pool: ConnectionPool::new(address_count),
+            pool: ConnectionPool::new(),
             #[cfg(feature = "dump")]
             dump_dir: None,
         }
+    }
+
+    async fn transport<R>(&self, settings: Option<&AppliedRequestSettings>) -> R::Client
+    where
+        R: TransportRequest + Mockable,
+        R::Response: Mockable,
+    {
+        let mut address_list = self.address_list.write().await;
+
+        R::Client::with_address_list(address_list.deref_mut(), settings, &self.pool)
+    }
+
+    async fn ban_address<TE>(&self, address: &Address) -> Result<Address, DapiClientError<TE>> {
+        let mut guard = self.address_list.write().await;
+        let banned = guard
+            .ban_address(address)
+            .map_err(DapiClientError::<TE>::AddressList)?;
+
+        // schedule unban
+        tokio::spawn(schedule_unban(banned.clone(), self.address_list.clone()));
+        Ok(banned)
     }
 }
 
@@ -124,20 +165,8 @@ impl DapiRequestExecutor for DapiClient {
         let routine = move || {
             // Try to get an address to initialize transport on:
 
-            let address_list = self
-                .address_list
-                .read()
-                .expect("can't get address list for read");
-
-            let address_result = address_list.get_live_address().cloned().ok_or(
-                DapiClientError::<<R::Client as TransportClient>::Error>::NoAvailableAddresses,
-            );
-
-            drop(address_list);
-
             let _span = tracing::trace_span!(
                 "execute request",
-                address = ?address_result,
                 settings = ?applied_settings,
                 method = request.method_name(),
             )
@@ -152,56 +181,40 @@ impl DapiRequestExecutor for DapiClient {
 
             let transport_request = request.clone();
             let response_name = request.response_name();
+            let address_list = self.address_list.clone();
 
             // Create a future using `async` block that will be returned from the closure on
             // each retry. Could be just a request future, but need to unpack client first.
             async move {
                 // It stays wrapped in `Result` since we want to return
                 // `impl Future<Output = Result<...>`, not a `Result` itself.
-                let address = address_result?;
-                let pool = self.pool.clone();
-
-                let mut transport_client = R::Client::with_uri_and_settings(
-                    address.uri().clone(),
-                    &applied_settings,
-                    &pool,
-                );
+                let mut transport_client = self.transport::<R>(Some(&applied_settings)).await;
 
                 let response = transport_request
                     .execute_transport(&mut transport_client, &applied_settings)
                     .await
                     .map_err(|e| {
-                        DapiClientError::<<R::Client as TransportClient>::Error>::Transport(
-                            e,
-                            address.clone(),
-                        )
+                        let uri = e.to_uri();
+                        DapiClientError::<<R::Client as TransportClient>::Error>::Transport(e, uri)
                     });
 
                 match &response {
                     Ok(_) => {
-                        // Unban the address if it was banned and node responded successfully this time
-                        if address.is_banned() {
-                            let mut address_list = self
-                                .address_list
-                                .write()
-                                .expect("can't get address list for write");
-
-                            address_list.unban_address(&address)
-                                .map_err(DapiClientError::<<R::Client as TransportClient>::Error>::AddressList)?;
-                        }
-
                         tracing::trace!(?response, "received {} response", response_name);
                     }
                     Err(error) => {
                         if error.is_node_failure() {
                             if applied_settings.ban_failed_address {
-                                let mut address_list = self
-                                    .address_list
-                                    .write()
-                                    .expect("can't get address list for write");
+                                if let DapiClientError::Transport(te, e) = error {
+                                    let uri = te.to_uri();
+                                    let guard = address_list.read().await;
+                                    let address = guard.get(&uri).cloned();
+                                    drop(guard);
 
-                                address_list.ban_address(&address)
-                                    .map_err(DapiClientError::<<R::Client as TransportClient>::Error>::AddressList)?;
+                                    if let Some(address) = address {
+                                        self.ban_address(&address).await?;
+                                    };
+                                }
                             }
                         } else {
                             tracing::trace!(?error, "received error");
@@ -241,5 +254,37 @@ impl DapiRequestExecutor for DapiClient {
         }
 
         result
+    }
+}
+
+/// Schedule unbanning of the address after the ban period.
+/// This function is called in a separate task.
+async fn schedule_unban(address: Address, address_list: Arc<RwLock<AddressList>>) {
+    if let Some(deadline) = address.banned_until() {
+        tokio::time::sleep_until(deadline.into()).await;
+
+        // Unban the address if it was banned and node responded successfully this time
+        // We must retrieve it again, as it might have already been modified
+        let addresses = address_list.read().await;
+        let address = addresses.get(&address.uri()).cloned();
+        drop(addresses);
+
+        if let Some(address) = address {
+            if address.is_banned() {
+                if let Some(banned_until) = address.banned_until() {
+                    if banned_until <= Instant::now() {
+                        let mut guard = address_list.write().await;
+                        if let Err(e) = guard.unban_address(&address) {
+                            tracing::error!("error unbanning address {}: {:?}", address, e);
+                        }
+                    };
+                }
+            }
+        } else {
+            tracing::warn!(
+                "unban worker: address {:?} not in the address list anymore",
+                address
+            );
+        }
     }
 }

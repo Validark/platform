@@ -1,44 +1,28 @@
+use crate::transport::{CoreGrpcClient, PlatformGrpcClient};
 use std::{
+    collections::HashMap,
     fmt::Display,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
-use http::Uri;
-use lru::LruCache;
-
-use crate::{
-    request_settings::AppliedRequestSettings,
-    transport::{CoreGrpcClient, PlatformGrpcClient},
-};
-
-/// ConnectionPool represents pool of connections to DAPI nodes.
+/// ConnectionPool represents already established connections to DAPI nodes.
 ///
 /// It can be cloned and shared between threads.
 /// Cloning the pool will create a new reference to the same pool.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConnectionPool {
-    inner: Arc<Mutex<LruCache<String, PoolItem>>>,
+    inner: Arc<RwLock<HashMap<PoolKey, PoolItem>>>,
 }
 
 impl ConnectionPool {
-    /// Create a new pool with a given capacity.
-    /// The pool will evict the least recently used item when the capacity is reached.
+    /// Create a new pool.
+    /// The pool will store up to one item for each key.
     ///
     /// # Panics
     ///
     /// Panics if the capacity is zero.
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(LruCache::new(
-                capacity.try_into().expect("must be non-zero"),
-            ))),
-        }
-    }
-}
-
-impl Default for ConnectionPool {
-    fn default() -> Self {
-        Self::new(50)
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -46,17 +30,12 @@ impl ConnectionPool {
     /// Get item from the pool for the given uri and settings.
     ///
     /// # Arguments
-    /// * `prefix` -  Prefix for the item in the pool. Used to distinguish between Core and Platform clients.
-    /// * `uri` - URI of the node.
-    /// * `settings` - Applied request settings.
-    pub fn get(
-        &self,
-        prefix: PoolPrefix,
-        uri: &Uri,
-        settings: Option<&AppliedRequestSettings>,
-    ) -> Option<PoolItem> {
-        let key = Self::key(prefix, uri, settings);
-        self.inner.lock().expect("must lock").get(&key).cloned()
+    /// * `key` - type of item to get.
+    pub fn get(&self, key: PoolKey) -> Option<PoolItem> {
+        let guard = self.inner.read().expect("pool lock poisoned");
+        let item = guard.get(&key).cloned();
+
+        item
     }
 
     /// Get value from cache or create it using provided closure.
@@ -64,38 +43,24 @@ impl ConnectionPool {
     /// If value is not in the cache, it will be created by calling `create()` and stored in the cache.
     ///
     /// # Arguments
-    /// * `prefix` -  Prefix for the item in the pool. Used to distinguish between Core and Platform clients.
-    /// * `uri` - URI of the node.
-    /// * `settings` - Applied request settings.
-    pub fn get_or_create(
-        &self,
-        prefix: PoolPrefix,
-        uri: &Uri,
-        settings: Option<&AppliedRequestSettings>,
-        create: impl FnOnce() -> PoolItem,
-    ) -> PoolItem {
-        if let Some(cli) = self.get(prefix, uri, settings) {
+    /// * `key` - type of item to get.
+    /// * `create` - closure that creates the item if it is not in the cache.
+    pub fn get_or_create(&self, key: PoolKey, create: impl FnOnce() -> PoolItem) -> PoolItem {
+        if let Some(cli) = self.get(key) {
             return cli;
         }
 
         let cli = create();
-        self.put(uri, settings, cli.clone());
+        self.put(key, cli.clone());
         cli
     }
 
     /// Put item into the pool for the given uri and settings.
-    pub fn put(&self, uri: &Uri, settings: Option<&AppliedRequestSettings>, value: PoolItem) {
-        let key = Self::key(&value, uri, settings);
-        self.inner.lock().expect("must lock").put(key, value);
-    }
-
-    fn key<C: Into<PoolPrefix>>(
-        class: C,
-        uri: &Uri,
-        settings: Option<&AppliedRequestSettings>,
-    ) -> String {
-        let prefix: PoolPrefix = class.into();
-        format!("{}:{}{:?}", prefix, uri, settings)
+    pub fn put(&self, id: PoolKey, value: PoolItem) {
+        self.inner
+            .write()
+            .expect("pool lock poisoned")
+            .insert(id, value);
     }
 }
 
@@ -150,23 +115,25 @@ impl From<PoolItem> for CoreGrpcClient {
 }
 
 /// Prefix for the item in the pool. Used to distinguish between Core and Platform clients.
-pub enum PoolPrefix {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PoolKey {
     Core,
     Platform,
 }
-impl Display for PoolPrefix {
+
+impl Display for PoolKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PoolPrefix::Core => write!(f, "Core"),
-            PoolPrefix::Platform => write!(f, "Platform"),
+            PoolKey::Core => write!(f, "Core"),
+            PoolKey::Platform => write!(f, "Platform"),
         }
     }
 }
-impl From<&PoolItem> for PoolPrefix {
+impl From<&PoolItem> for PoolKey {
     fn from(item: &PoolItem) -> Self {
         match item {
-            PoolItem::Core(_) => PoolPrefix::Core,
-            PoolItem::Platform(_) => PoolPrefix::Platform,
+            PoolItem::Core(_) => PoolKey::Core,
+            PoolItem::Platform(_) => PoolKey::Platform,
         }
     }
 }

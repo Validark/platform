@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use super::{CanRetry, TransportClient, TransportRequest};
-use crate::connection_pool::{ConnectionPool, PoolPrefix};
+use crate::address_list::AddressEventProvider;
+use crate::connection_pool::ConnectionPool;
 use crate::{request_settings::AppliedRequestSettings, RequestSettings};
 use dapi_grpc::core::v0::core_client::CoreClient;
 use dapi_grpc::core::v0::{self as core_proto};
@@ -33,44 +34,33 @@ fn create_channel(uri: Uri, settings: Option<&AppliedRequestSettings>) -> Channe
 impl TransportClient for PlatformGrpcClient {
     type Error = dapi_grpc::tonic::Status;
 
-    fn with_uri(uri: Uri, pool: &ConnectionPool) -> Self {
-        pool.get_or_create(PoolPrefix::Platform, &uri, None, || {
-            Self::new(create_channel(uri.clone(), None)).into()
-        })
-        .into()
-    }
-
-    fn with_uri_and_settings(
-        uri: Uri,
-        settings: &AppliedRequestSettings,
+    fn with_address_list<A: AddressEventProvider>(
+        address_list: &mut A,
+        settings: Option<&AppliedRequestSettings>,
         pool: &ConnectionPool,
     ) -> Self {
-        pool.get_or_create(PoolPrefix::Platform, &uri, Some(settings), || {
-            Self::new(create_channel(uri.clone(), Some(settings))).into()
-        })
-        .into()
+        let (channel, sender) = Channel::balance_channel(128);
+
+        // TODO: add a way to set timeout for the connection
+        address_list.subscribe(sender);
+        Self::new(channel)
     }
 }
 
 impl TransportClient for CoreGrpcClient {
     type Error = dapi_grpc::tonic::Status;
 
-    fn with_uri(uri: Uri, pool: &ConnectionPool) -> Self {
-        pool.get_or_create(PoolPrefix::Core, &uri, None, || {
-            Self::new(create_channel(uri.clone(), None)).into()
-        })
-        .into()
-    }
-
-    fn with_uri_and_settings(
-        uri: Uri,
-        settings: &AppliedRequestSettings,
+    fn with_address_list<A: AddressEventProvider>(
+        address_list: &mut A,
+        settings: Option<&AppliedRequestSettings>,
         pool: &ConnectionPool,
     ) -> Self {
-        pool.get_or_create(PoolPrefix::Core, &uri, Some(settings), || {
-            Self::new(create_channel(uri.clone(), Some(settings))).into()
-        })
-        .into()
+        let (channel, mut sender) = Channel::balance_channel(128);
+
+        // TODO: add a way to set timeout for the connection
+
+        address_list.subscribe(sender);
+        Self::new(channel)
     }
 }
 

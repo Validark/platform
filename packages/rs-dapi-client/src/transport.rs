@@ -2,13 +2,14 @@
 
 pub(crate) mod grpc;
 
+use crate::address_list::AddressEventProvider;
 use crate::connection_pool::ConnectionPool;
+use crate::dapi_client::ToUri;
 pub use crate::request_settings::AppliedRequestSettings;
 use crate::{CanRetry, RequestSettings};
 use dapi_grpc::mock::Mockable;
 pub use futures::future::BoxFuture;
 pub use grpc::{CoreGrpcClient, PlatformGrpcClient};
-use http::Uri;
 use std::any;
 use std::fmt::Debug;
 
@@ -48,15 +49,24 @@ pub trait TransportRequest: Clone + Send + Sync + Debug + Mockable {
 /// Generic way to create a transport client from provided [Uri].
 pub trait TransportClient: Send + Sized {
     /// Error type for the specific client.
-    type Error: CanRetry + Send + Debug;
+    type Error: CanRetry + ToUri + Send + Debug;
 
-    /// Build client using node's url.
-    fn with_uri(uri: Uri, pool: &ConnectionPool) -> Self;
-
-    /// Build client using node's url and [AppliedRequestSettings].
-    fn with_uri_and_settings(
-        uri: Uri,
-        settings: &AppliedRequestSettings,
+    /// Build client that will be linked with [AddressList].
+    fn with_address_list<A: AddressEventProvider>(
+        address_list: &mut A,
+        settings: Option<&AppliedRequestSettings>,
         pool: &ConnectionPool,
     ) -> Self;
+
+    // /// Build client using node's url.
+    // #[deprecated = "Use with_address_list instead"]
+    // fn with_uri(uri: Uri, pool: &ConnectionPool) -> Self;
+
+    // /// Build client using node's url and [AppliedRequestSettings].
+    // #[deprecated = "Use with_address_list instead"]
+    // fn with_uri_and_settings(
+    //     uri: Uri,
+    //     settings: &AppliedRequestSettings,
+    //     pool: &ConnectionPool,
+    // ) -> Self;
 }
