@@ -64,7 +64,7 @@ pub type DataContracts = RetrievedObjects<Identifier, DataContract>;
 ///
 /// Mapping between the contenders identity IDs and their info.
 /// If a contender is not found, it is represented as `None`.
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 #[cfg_attr(
     feature = "mocks",
     derive(Encode, Decode, PlatformSerialize, PlatformDeserialize,),
