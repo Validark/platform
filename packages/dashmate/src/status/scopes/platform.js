@@ -1,4 +1,3 @@
-import prettyMs from 'pretty-ms';
 import providers from '../providers.js';
 import { DockerStatusEnum } from '../enums/dockerStatus.js';
 import { ServiceStatusEnum } from '../enums/serviceStatus.js';
@@ -16,7 +15,7 @@ export default function getPlatformScopeFactory(
   createRpcClient,
   getConnectionHost,
 ) {
-  async function getCoreInfo(config) {
+  async function getMNSync(config) {
     const rpcClient = createRpcClient({
       port: config.get('core.rpc.port'),
       user: 'dashmate',
@@ -24,27 +23,16 @@ export default function getPlatformScopeFactory(
       host: await getConnectionHost(config, 'core', 'core.rpc.host'),
     });
 
-    const [mnSync, blockchainInfo] = await Promise.all([
-      rpcClient.mnsync('status'),
-      rpcClient.getBlockchainInfo(),
-    ]);
-
-    const {
-      result: {
-        softforks: { mn_rr: mnRR },
-      },
-    } = blockchainInfo;
-
     const {
       result: {
         IsSynced: isSynced,
       },
-    } = mnSync;
+    } = await rpcClient.mnsync('status');
 
-    return { isSynced, mnRRSoftFork: mnRR };
+    return isSynced;
   }
 
-  async function getTenderdashInfo(config, isCoreSynced, mnRRSoftFork) {
+  async function getTenderdashInfo(config, isCoreSynced) {
     const info = {
       p2pPortState: null,
       httpPortState: null,
@@ -75,7 +63,7 @@ export default function getPlatformScopeFactory(
       }
 
       const dockerStatus = await determineStatus.docker(dockerCompose, config, 'drive_tenderdash');
-      const serviceStatus = determineStatus.platform(dockerStatus, isCoreSynced, mnRRSoftFork);
+      const serviceStatus = determineStatus.platform(dockerStatus, isCoreSynced);
 
       info.dockerStatus = dockerStatus;
       info.serviceStatus = serviceStatus;
@@ -154,7 +142,7 @@ export default function getPlatformScopeFactory(
     return info;
   }
 
-  const getDriveInfo = async (config, isCoreSynced, mnRRSoftFork) => {
+  const getDriveInfo = async (config, isCoreSynced) => {
     const info = {
       dockerStatus: null,
       serviceStatus: null,
@@ -162,7 +150,7 @@ export default function getPlatformScopeFactory(
 
     try {
       info.dockerStatus = await determineStatus.docker(dockerCompose, config, 'drive_abci');
-      info.serviceStatus = determineStatus.platform(info.dockerStatus, isCoreSynced, mnRRSoftFork);
+      info.serviceStatus = determineStatus.platform(info.dockerStatus, isCoreSynced);
 
       if (info.serviceStatus === ServiceStatusEnum.up) {
         const driveEchoResult = await dockerCompose.execCommand(
@@ -206,7 +194,6 @@ export default function getPlatformScopeFactory(
     const rpcService = `${rpcHost}:${rpcPort}`;
 
     const scope = {
-      platformActivation: null,
       coreIsSynced: null,
       httpPort,
       httpService,
@@ -246,14 +233,11 @@ export default function getPlatformScopeFactory(
       }
     }
 
-    let coreInfo;
-
     try {
-      coreInfo = await getCoreInfo(config);
+      const coreIsSynced = await getMNSync(config);
+      scope.coreIsSynced = coreIsSynced;
 
-      scope.coreIsSynced = coreInfo.isSynced;
-
-      if (!coreInfo.isSynced) {
+      if (!coreIsSynced) {
         if (process.env.DEBUG) {
           // eslint-disable-next-line no-console
           console.error('Platform status is not available until masternode state is \'READY\'');
@@ -266,34 +250,20 @@ export default function getPlatformScopeFactory(
       }
     }
 
-    if (coreInfo) {
-      const { mnRRSoftFork } = coreInfo;
+    const [tenderdash, drive] = await Promise.all([
+      getTenderdashInfo(config, scope.coreIsSynced),
+      getDriveInfo(config, scope.coreIsSynced),
+    ]);
 
-      if (mnRRSoftFork.active) {
-        scope.platformActivation = `Activated (at height ${mnRRSoftFork.height})`;
-      } else {
-        const startTime = mnRRSoftFork.bip9.start_time;
+    if (tenderdash) {
+      scope.tenderdash = tenderdash;
 
-        const diff = (new Date().getTime() - startTime) / 1000;
+      scope.httpPortState = tenderdash.httpPortState;
+      scope.p2pPortState = tenderdash.p2pPortState;
+    }
 
-        scope.platformActivation = `Waiting for activation (approximately in ${prettyMs(diff, { compact: true })})`;
-      }
-
-      const [tenderdash, drive] = await Promise.all([
-        getTenderdashInfo(config, scope.coreIsSynced, coreInfo.mnRRSoftFork),
-        getDriveInfo(config, scope.coreIsSynced, coreInfo.mnRRSoftFork),
-      ]);
-
-      if (tenderdash) {
-        scope.tenderdash = tenderdash;
-
-        scope.httpPortState = tenderdash.httpPortState;
-        scope.p2pPortState = tenderdash.p2pPortState;
-      }
-
-      if (drive) {
-        scope.drive = drive;
-      }
+    if (drive) {
+      scope.drive = drive;
     }
 
     return scope;

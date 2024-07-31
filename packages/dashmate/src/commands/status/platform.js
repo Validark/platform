@@ -32,7 +32,6 @@ export default class PlatformStatusCommand extends ConfigBaseCommand {
     flags,
     dockerCompose,
     createRpcClient,
-    getConnectionHost,
     config,
     getPlatformScope,
   ) {
@@ -58,7 +57,6 @@ export default class PlatformStatusCommand extends ConfigBaseCommand {
 
     if (flags.format === OUTPUT_FORMATS.PLAIN) {
       const {
-        platformActivation,
         httpService,
         httpPort,
         httpPortState,
@@ -69,8 +67,6 @@ export default class PlatformStatusCommand extends ConfigBaseCommand {
         tenderdash,
         drive,
       } = scope;
-
-      plain['Platform Activation'] = platformActivation ? colors.platformActivation(platformActivation)(platformActivation) : 'n/a';
 
       plain['HTTP service'] = httpService || 'n/a';
       plain['HTTP port'] = `${httpPort} ${httpPortState ? colors.portState(httpPortState)(httpPortState) : ''}`;
