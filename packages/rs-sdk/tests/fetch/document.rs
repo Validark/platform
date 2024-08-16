@@ -1,14 +1,18 @@
 //! Test document CRUDL operations
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::{common::setup_logs, config::Config};
+use dapi_grpc::platform::v0::{get_documents_request, GetDocumentsRequest};
 use dash_sdk::platform::{DocumentQuery, Fetch, FetchMany};
 use dpp::data_contract::accessors::v0::DataContractV0Getters;
 use dpp::document::{Document, DocumentV0Getters};
 use dpp::platform_value::string_encoding::Encoding;
+use dpp::platform_value::Value;
 use dpp::prelude::{DataContract, Identifier};
-use drive::query::{DriveDocumentQuery, OrderClause, WhereClause};
+use drive::query::{DriveDocumentQuery, InternalClauses, OrderClause, WhereClause, WhereOperator};
+use rs_dapi_client::DapiRequest;
 
 /// Given some data contract ID, document type and document ID, when I fetch it, then I get it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -223,4 +227,77 @@ async fn document_list_bug_value_text_decode_base58_PLAN_653() {
     let _docs = Document::fetch_many(&sdk, query)
         .await
         .expect("fetch many documents");
+}
+
+/// Given some data contract ID and document type with at least one document, when I fetch many documents using DriveQuery
+/// as a query, then I get one or more items.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn document_list_drive_query_asc() {
+    setup_logs();
+
+    let cfg = Config::new();
+    let sdk = cfg.setup_api("document_list_drive_query").await;
+
+    let data_contract_id = cfg.existing_data_contract_id;
+
+    let data_contract = DataContract::fetch(&sdk, data_contract_id)
+        .await
+        .expect("fetch data contract")
+        .expect("data contract not found");
+
+    let doctype = data_contract
+        .document_type_for_name(&cfg.existing_document_type_name)
+        .expect("document type not found");
+
+    let query_asc = DriveDocumentQuery {
+        contract: &data_contract,
+        document_type: doctype,
+        internal_clauses: InternalClauses {
+            primary_key_in_clause: None,
+            primary_key_equal_clause: None,
+            in_clause: None,
+            range_clause: Some(WhereClause {
+                field: "records.identity".to_string(),
+                operator: WhereOperator::LessThan,
+                value: Value::Identifier(
+                    Identifier::from_string(
+                        "AYN4srupPWDrp833iG5qtmaAsbapNvaV7svAdncLN5Rh",
+                        Encoding::Base58,
+                    )
+                    .unwrap()
+                    .to_buffer(),
+                ),
+            }),
+            equal_clauses: BTreeMap::new(),
+        },
+        offset: None,
+        limit: Some(6),
+        order_by: vec![(
+            "records.identity".to_string(),
+            OrderClause {
+                field: "records.identity".to_string(),
+                ascending: true,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        start_at: None,
+        start_at_included: false,
+        block_time_ms: None,
+    };
+
+    let docquery = DocumentQuery::new_with_drive_query(&query_asc);
+    let mut request = GetDocumentsRequest::try_from(docquery).expect("convert to proto");
+    if let Some(get_documents_request::Version::V0(ref mut v0)) = request.version {
+        v0.prove = false;
+    } else {
+        panic!("version V0 not found");
+    };
+
+    let response = request
+        .execute(&sdk, Default::default())
+        .await
+        .expect("fetch many documents");
+
+    tracing::info!(?response, "fetched documents");
 }
